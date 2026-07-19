@@ -10,7 +10,7 @@
 | 内核 | `Image` | 替换 boot 分区的 `/Image` |
 | DTB | `rk3566-powkiddy-x35h.dtb` / `rk3566-powkiddy-x35s.dtb` | 复制到 boot 分区根目录 |
 | extlinux | `overlay/extlinux/*.extlinux.conf` | 整文件替换，APPEND 相对上游有三处改动（见下） |
-| rootfs | `overlay/rootfs/etc/systemd/sleep.conf.d/s2idle.conf` | 强制 s2idle 休眠模式 |
+| rootfs | `overlay/rootfs/` | s2idle、设备标识、音频与模拟器恢复脚本（见下） |
 
 ### extlinux.conf APPEND 改动（相对上游 RK2023）
 
@@ -27,8 +27,17 @@
 | 路径 | 说明 |
 | --- | --- |
 | `/etc/systemd/sleep.conf.d/s2idle.conf` | 强制 `MemorySleepMode=s2idle`、`SuspendState=mem`（本板 deep sleep 无法唤醒） |
+| `/home/ark/.config/.DEVICE` | 设为 `X35H` / `X35S`（构建时按变体写入；不再沿用上游 `RK2023`） |
+| `/usr/local/bin/spktoggle.sh` | X35 静音恢复 / 扬声器路径用 **SPK**（RK2023/RGB30 仍用历史 HP 逻辑） |
+| root crontab | **删除** `@reboot spktoggle.sh`（开机时若已是 SPK 会被它切成 HP→喇叭无声） |
+| `/usr/local/bin/Fix Audio.sh` | 识别 X35H/X35S，修复音频时设 **SPK** |
+| `/opt/system/Advanced/Fix Audio.sh` | 同上 |
+| `/usr/local/bin/headphone-audio-switch.sh` | 优先读 extcon `HEADPHONE=`，回退 dmesg |
+| `Restore Default {Drastic,GZdoom,LZdoom,PPSSPP}*.sh` | X35 使用 rk2023 配置档（同为 640×480） |
 
-模板位于 `overlay/rootfs/`，构建时挂载 rootfs 分区（p4，btrfs）后复制进去。
+模板位于 `overlay/rootfs/`，构建时挂载 rootfs 分区（p4，btrfs）后复制进去；`.DEVICE` 由 `mod-image.sh` 按变体覆盖。
+
+> **说明：** 上游把 RK2023/RGB30 的「扬声器」写成 `Playback Path=HP`。X35 上 HP 会关掉 `spk-ctl`，喇叭无声，必须用 SPK。
 
 X35H 与 X35S 硬件相同，仅屏幕方向不同，因此分别输出两个镜像。
 
@@ -47,7 +56,10 @@ X35H 与 X35S 硬件相同，仅屏幕方向不同，因此分别输出两个镜
 │   │   ├── X35H.extlinux.conf
 │   │   └── X35S.extlinux.conf
 │   └── rootfs/                # rootfs 文件覆盖（保持路径一致）
-│       └── etc/systemd/sleep.conf.d/s2idle.conf
+│       ├── etc/systemd/sleep.conf.d/s2idle.conf
+│       ├── home/ark/.config/.DEVICE
+│       ├── usr/local/bin/{spktoggle,Fix Audio,headphone-audio-switch}.sh
+│       └── opt/system/Advanced/{Fix Audio,Restore Default *}.sh
 └── scripts/
     ├── download-base.sh       # 下载并解压上游 RK2023 镜像
     ├── mod-image.sh           # 单变体 mod（uboot + kernel + dtb）

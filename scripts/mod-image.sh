@@ -149,16 +149,44 @@ mount_rootfs() {
 apply_rootfs_overlay() {
   local root_mnt="$1"
   local overlay="${REPO_ROOT}/overlay/rootfs"
+  local device_file="${root_mnt}/home/ark/.config/.DEVICE"
+  local cron_file="${root_mnt}/var/spool/cron/crontabs/root"
+  local ark_uid ark_gid
 
   [[ -d "${overlay}" ]] || return 0
 
   echo "[mod] applying rootfs overlay from overlay/rootfs/"
   cp -a "${overlay}/." "${root_mnt}/"
+
+  # Variant-specific device id (overlay ships X35H as placeholder)
+  mkdir -p "$(dirname "${device_file}")"
+  printf '%s\n' "${VARIANT_NAME}" > "${device_file}"
+  if ark_uid="$(stat -c '%u' "${root_mnt}/home/ark" 2>/dev/null)" \
+    && ark_gid="$(stat -c '%g' "${root_mnt}/home/ark" 2>/dev/null)"; then
+    chown "${ark_uid}:${ark_gid}" "${device_file}" 2>/dev/null || true
+  fi
+  echo "[mod] set .DEVICE=${VARIANT_NAME}"
+
+  # Upstream @reboot spktoggle.sh toggles SPK→HP when path is already SPK.
+  # On X35 that mutes the speaker amp; headphone-audio-switch.sh is enough at boot.
+  if [[ -f "${cron_file}" ]]; then
+    if grep -q 'spktoggle\.sh' "${cron_file}"; then
+      echo "[mod] removing @reboot spktoggle.sh from root crontab"
+      sed -i '/spktoggle\.sh/d' "${cron_file}"
+    fi
+  else
+    echo "[mod] warning: root crontab not found at ${cron_file}" >&2
+  fi
 }
 
 verify_rootfs_overlay() {
   local root_mnt="$1"
   local sleep_conf="${root_mnt}/etc/systemd/sleep.conf.d/s2idle.conf"
+  local device_file="${root_mnt}/home/ark/.config/.DEVICE"
+  local fix_audio="${root_mnt}/usr/local/bin/Fix Audio.sh"
+  local spktoggle="${root_mnt}/usr/local/bin/spktoggle.sh"
+  local cron_file="${root_mnt}/var/spool/cron/crontabs/root"
+  local device_id
 
   [[ -f "${sleep_conf}" ]] || {
     echo "Error: missing ${sleep_conf}" >&2
@@ -172,6 +200,43 @@ verify_rootfs_overlay() {
     echo "Error: s2idle.conf missing SuspendState=mem" >&2
     exit 1
   }
+
+  [[ -f "${device_file}" ]] || {
+    echo "Error: missing ${device_file}" >&2
+    exit 1
+  }
+  device_id="$(tr -d '\r\n' < "${device_file}")"
+  [[ "${device_id}" == "${VARIANT_NAME}" ]] || {
+    echo "Error: .DEVICE is '${device_id}', expected '${VARIANT_NAME}'" >&2
+    exit 1
+  }
+
+  [[ -f "${fix_audio}" ]] || {
+    echo "Error: missing ${fix_audio}" >&2
+    exit 1
+  }
+  grep -q 'X35H' "${fix_audio}" || {
+    echo "Error: Fix Audio.sh missing X35H support" >&2
+    exit 1
+  }
+
+  [[ -f "${spktoggle}" ]] || {
+    echo "Error: missing ${spktoggle}" >&2
+    exit 1
+  }
+  grep -q 'X35H' "${spktoggle}" || {
+    echo "Error: spktoggle.sh missing X35H support" >&2
+    exit 1
+  }
+  grep -q 'unmute_path="SPK"' "${spktoggle}" || {
+    echo "Error: spktoggle.sh missing X35 unmute_path=SPK" >&2
+    exit 1
+  }
+
+  if [[ -f "${cron_file}" ]] && grep -q 'spktoggle\.sh' "${cron_file}"; then
+    echo "Error: root crontab still contains spktoggle.sh @reboot" >&2
+    exit 1
+  fi
 }
 
 main() {
