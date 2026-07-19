@@ -1,0 +1,11 @@
+.cache/
+dist/
+backup-*/
+*.img
+*.img.7z.*
+*.log
+
+# Editor / OS
+.DS_Store
+*.swp
+*~

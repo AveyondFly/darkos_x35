@@ -1,0 +1,91 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      upload_baidu:
+        description: Upload artifacts to Baidu Netdisk
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+env:
+  DEBIAN_FRONTEND: noninteractive
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y p7zip-full curl gdisk dosfstools unzip btrfs-progs
+
+      - name: Build modded images
+        run: sudo bash scripts/build-all.sh
+
+      - name: Write release notes
+        run: |
+          cat > dist/RELEASE_NOTES.md <<'EOF'
+          ## dArkOS RK2023 → PowKiddy X35H / X35S
+
+          Based on [dArkOS ${DARKOS_RELEASE}](https://github.com/christianhaitian/dArkOS/releases/tag/${DARKOS_RELEASE}) RK2023 image.
+
+          ### Changes
+          - Custom RK3566 U-Boot (`RK3566-Specific_uboot.bin`)
+          - Custom kernel (`Image`)
+          - Device tree for X35H or X35S
+
+          ### Flash
+          1. Download all `.7z.00x` parts for your variant (x35h or x35s).
+          2. Extract with 7-Zip (open `.001`).
+          3. Write the `.img` to SD card (Rufus, balenaEtcher, `dd`, etc.).
+
+          ### Variants
+          | Device | Archive prefix |
+          | --- | --- |
+          | X35H (horizontal) | `dArkOS_RK2023_X35H_*` |
+          | X35S (vertical) | `dArkOS_RK2023_X35S_*` |
+          EOF
+          sed -i "s/\${DARKOS_RELEASE}/${{ vars.DARKOS_RELEASE || 'v06072026' }}/g" dist/RELEASE_NOTES.md
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: darkos-x35-images
+          path: dist/*
+          retention-days: 7
+
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          body_path: dist/RELEASE_NOTES.md
+          draft: false
+          prerelease: ${{ contains(github.ref_name, '-rc') || contains(github.ref_name, '-beta') }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload to Baidu Netdisk
+        if: (startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch') && github.event.inputs.upload_baidu != 'false' && secrets.BDUSS != '' && secrets.STOKEN != ''
+        env:
+          BDUSS: ${{ secrets.BDUSS }}
+          STOKEN: ${{ secrets.STOKEN }}
+          BAIDU_REMOTE_DIR: ${{ vars.BAIDU_REMOTE_DIR || '/Apps/dArkOS-X35/' }}
+        run: bash scripts/upload-baidu.sh
+
+      - name: Baidu upload skipped notice
+        if: (startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch') && github.event.inputs.upload_baidu != 'false' && (secrets.BDUSS == '' || secrets.STOKEN == '')
+        run: |
+          echo "::notice::Baidu upload skipped — set repository secrets BDUSS and STOKEN to enable."
