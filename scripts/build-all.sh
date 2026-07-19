@@ -38,13 +38,52 @@ compress_image() {
   local img="$1"
   local archive_base="$2"
   local out_dir="$3"
+  local split="${SPLIT_SIZE:-1950m}"
+  local max_bytes=$((2 * 1024 * 1024 * 1024 - 64 * 1024 * 1024)) # ~2GiB minus 64MiB margin
+  local part part_count=0 size
 
-  echo "[compress] ${img}"
-  rm -f "${out_dir}/${archive_base}.7z".*
+  echo "[compress] ${img} (split=${split})"
+  rm -f "${out_dir}/${archive_base}.7z" "${out_dir}/${archive_base}.7z".*
+
   (
     cd "${out_dir}"
-    7z a -t7z -mx=5 "-v${SPLIT_SIZE}" "${archive_base}.7z" "$(basename "${img}")"
+    7z a -t7z -mx=5 "-v${split}" "${archive_base}.7z" "$(basename "${img}")"
   )
+
+  shopt -s nullglob
+  local parts=( "${out_dir}/${archive_base}.7z."* )
+  shopt -u nullglob
+
+  if [[ ${#parts[@]} -eq 0 ]]; then
+    echo "Error: no split archive created for ${archive_base}" >&2
+    exit 1
+  fi
+
+  for part in "${parts[@]}"; do
+    size="$(stat -c%s "${part}")"
+    if (( size > max_bytes )); then
+      echo "Error: ${part} is ${size} bytes (> GitHub 2GiB asset limit)" >&2
+      exit 1
+    fi
+    part_count=$((part_count + 1))
+  done
+
+  echo "[compress] ${part_count} volume(s):"
+  ls -lh "${parts[@]}"
+
+  rm -f "${img}"
+  echo "[compress] removed raw image $(basename "${img}")"
+}
+
+fix_output_ownership() {
+  # CI/local: sudo creates root-owned dist/; later steps run as the invoking user.
+  if [[ -n "${SUDO_USER:-}" ]]; then
+    local owner group
+    owner="${SUDO_USER}"
+    group="$(id -gn "${owner}")"
+    chown -R "${owner}:${group}" "${OUTPUT_DIR}"
+    [[ -d "${CACHE_DIR}" ]] && chown -R "${owner}:${group}" "${CACHE_DIR}"
+  fi
 }
 
 main() {
@@ -95,6 +134,7 @@ main() {
 
   echo "[build] Artifacts in ${OUTPUT_DIR}:"
   ls -lh "${OUTPUT_DIR}"
+  fix_output_ownership
 }
 
 main "$@"

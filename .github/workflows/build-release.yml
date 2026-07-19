@@ -59,18 +59,46 @@ jobs:
           EOF
           sed -i "s/\${DARKOS_RELEASE}/${{ vars.DARKOS_RELEASE || 'v06072026' }}/g" dist/RELEASE_NOTES.md
 
-      - name: Upload build artifacts
+      - name: List build outputs
+        run: |
+          echo "=== dist/ contents ==="
+          ls -lh dist/ || true
+          echo "=== 7z split parts ==="
+          ls -lh dist/*.7z.* 2>/dev/null || echo "(no .7z.* files found)"
+          if ls dist/*.img >/dev/null 2>&1; then
+            echo "::warning::Raw .img still present in dist/ — compress step may have been skipped"
+            ls -lh dist/*.img
+          fi
+
+      - name: Upload X35H artifact
         uses: actions/upload-artifact@v4
         with:
-          name: darkos-x35-images
-          path: dist/*
+          name: darkos-x35h-7z
+          path: dist/*X35H*.7z.*
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Upload X35S artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: darkos-x35s-7z
+          path: dist/*X35S*.7z.*
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Upload release notes
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-notes
+          path: dist/RELEASE_NOTES.md
           retention-days: 7
 
       - name: Create GitHub Release
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/*
+          files: |
+            dist/*.7z.*
           body_path: dist/RELEASE_NOTES.md
           draft: false
           prerelease: ${{ contains(github.ref_name, '-rc') || contains(github.ref_name, '-beta') }}

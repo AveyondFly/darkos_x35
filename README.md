@@ -64,10 +64,12 @@ sudo apt-get install -y p7zip-full curl gdisk dosfstools btrfs-progs
 sudo bash scripts/build-all.sh
 ```
 
-产物在 `dist/`：
+产物在 `dist/`（每个变体约 3 个分卷，单卷 < 2GiB，可上传 GitHub Release）：
 
-- `dArkOS_RK2023_X35H_trixie_06082026.img.7z.001` …
-- `dArkOS_RK2023_X35S_trixie_06082026.img.7z.001` …
+- `dArkOS_RK2023_X35H_trixie_06082026.img.7z.001` … `.002` …
+- `dArkOS_RK2023_X35S_trixie_06082026.img.7z.001` … `.002` …
+
+压缩完成后会删除 raw `.img`，Release / 百度网盘只发布 `.7z.*` 分卷。
 
 仅构建某一变体：
 
@@ -96,6 +98,20 @@ sudo ./flash-uboot.sh darkos-rk2023.img  # 镜像文件
    git push origin v1.0.0
    ```
 2. **手动运行**：Actions → Build and Release → Run workflow
+
+### Actions Artifacts（手动构建下载）
+
+`upload-artifact` 会把文件**再打成 zip** 上传到 Actions；页面上每个 upload 步骤 = **1 个** artifact 条目，这是 GitHub 机制，不代表分卷失败。
+
+下载 artifact zip 后解压，才能看到 `.7z.001`、`.7z.002` 等分卷。
+
+| Artifact 名 | 内容 |
+| --- | --- |
+| `darkos-x35h-7z` | X35H 全部分卷 |
+| `darkos-x35s-7z` | X35S 全部分卷 |
+| `release-notes` | 发布说明 |
+
+若要每个分卷**单独列出**供下载，请打 tag 发 **GitHub Release**（单附件 < 2GiB）。
 
 ### 仓库 Secrets（百度网盘）
 

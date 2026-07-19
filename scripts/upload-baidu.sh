@@ -32,18 +32,18 @@ install_baidupcs() {
     return 0
   fi
 
-  local cache_dir tmp_dir asset_url
+  local cache_dir tmp_dir asset_url extracted
   cache_dir="${REPO_ROOT}/.cache"
   tmp_dir="$(mktemp -d)"
   mkdir -p "${cache_dir}"
 
   asset_url="https://github.com/qjfoidnh/BaiduPCS-Go/releases/download/${BAIDUPCS_VERSION}/BaiduPCS-Go-${BAIDUPCS_VERSION}-linux-amd64.zip"
+  extracted="${tmp_dir}/BaiduPCS-Go"
 
   echo "[baidu] downloading BaiduPCS-Go ${BAIDUPCS_VERSION}"
   curl -fL --retry 3 -o "${tmp_dir}/baidupcs.zip" "${asset_url}"
-  unzip -q -j "${tmp_dir}/baidupcs.zip" "BaiduPCS-Go-${BAIDUPCS_VERSION}-linux-amd64/BaiduPCS-Go" -d "${cache_dir}"
-  mv "${cache_dir}/BaiduPCS-Go" "${BAIDUPCS_BIN}"
-  chmod +x "${BAIDUPCS_BIN}"
+  unzip -q -j "${tmp_dir}/baidupcs.zip" "BaiduPCS-Go-${BAIDUPCS_VERSION}-linux-amd64/BaiduPCS-Go" -d "${tmp_dir}"
+  install -m 755 "${extracted}" "${BAIDUPCS_BIN}"
   rm -rf "${tmp_dir}"
 }
 

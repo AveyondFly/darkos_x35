@@ -123,10 +123,6 @@ verify_extlinux() {
   fi
 }
 
-boot_part_path() {
-  part_path "$1" "$2"
-}
-
 mount_rootfs() {
   local dev="$1" mnt="$2"
   local fstype
@@ -226,8 +222,8 @@ main() {
   disk="${loop_dev}"
 
   local boot_dev root_dev
-  boot_dev="$(boot_part_path "${disk}" "${BOOT_PART}")"
-  root_dev="$(boot_part_path "${disk}" "${ROOTFS_PART}")"
+  boot_dev="$(part_path "${disk}" "${BOOT_PART}")"
+  root_dev="$(part_path "${disk}" "${ROOTFS_PART}")"
   wait_for_block "${boot_dev}" "${disk}" || exit 1
   wait_for_block "${root_dev}" "${disk}" || exit 1
 
