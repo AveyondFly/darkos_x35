@@ -7,6 +7,48 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 # shellcheck source=config.env
 source "${REPO_ROOT}/config.env"
 
+part_path() {
+  local disk="$1" part="$2"
+
+  if [[ "${disk}" == /dev/loop* ]]; then
+    echo "${disk}p${part}"
+    return 0
+  fi
+
+  if [[ -b "${disk}p${part}" ]]; then
+    echo "${disk}p${part}"
+  elif [[ -b "${disk}${part}" ]]; then
+    echo "${disk}${part}"
+  else
+    echo "${disk}p${part}"
+  fi
+}
+
+wait_for_block() {
+  local dev="$1" disk="${2:-}"
+  local i
+
+  for ((i = 1; i <= 50; i++)); do
+    [[ -b "${dev}" ]] && return 0
+    [[ -n "${disk}" ]] && partprobe "${disk}" 2>/dev/null || true
+    udevadm settle 2>/dev/null || true
+    sleep 0.2
+  done
+
+  echo "Error: block device not ready: ${dev}" >&2
+  return 1
+}
+
+setup_loop_image() {
+  local image="$1"
+  local loop_dev
+
+  loop_dev="$(losetup -Pf --show "${image}")"
+  partprobe "${loop_dev}" 2>/dev/null || true
+  udevadm settle 2>/dev/null || true
+  echo "${loop_dev}"
+}
+
 usage() {
   cat <<EOF
 Usage: $(basename "$0") <variant> <input.img> <output.img>
@@ -82,8 +124,7 @@ verify_extlinux() {
 }
 
 boot_part_path() {
-  local disk="$1" part="$2"
-  [[ -b "${disk}p${part}" ]] && echo "${disk}p${part}" || echo "${disk}${part}"
+  part_path "$1" "$2"
 }
 
 mount_rootfs() {
@@ -181,23 +222,14 @@ main() {
   fi
 
   local loop_dev disk boot_mnt="" root_mnt=""
-  loop_dev="$(losetup -Pf --show "${output}")"
+  loop_dev="$(setup_loop_image "${output}")"
   disk="${loop_dev}"
-  partprobe "${loop_dev}" 2>/dev/null || true
 
   local boot_dev root_dev
   boot_dev="$(boot_part_path "${disk}" "${BOOT_PART}")"
   root_dev="$(boot_part_path "${disk}" "${ROOTFS_PART}")"
-  [[ -b "${boot_dev}" ]] || {
-    echo "Error: boot partition not found: ${boot_dev}" >&2
-    losetup -d "${loop_dev}" 2>/dev/null || true
-    exit 1
-  }
-  [[ -b "${root_dev}" ]] || {
-    echo "Error: rootfs partition not found: ${root_dev}" >&2
-    losetup -d "${loop_dev}" 2>/dev/null || true
-    exit 1
-  }
+  wait_for_block "${boot_dev}" "${disk}" || exit 1
+  wait_for_block "${root_dev}" "${disk}" || exit 1
 
   cleanup() {
     umount "${boot_mnt}" 2>/dev/null || true

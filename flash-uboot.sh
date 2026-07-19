@@ -58,7 +58,13 @@ open_disk() {
 
 boot_part_path() {
   local d="$1" n="$2"
-  [[ -b "${d}p${n}" ]] && echo "${d}p${n}" || echo "${d}${n}"
+  if [[ "${d}" == /dev/loop* ]]; then
+    echo "${d}p${n}"
+  elif [[ -b "${d}p${n}" ]]; then
+    echo "${d}p${n}"
+  else
+    echo "${d}${n}"
+  fi
 }
 
 cmd_restore() {
@@ -103,13 +109,15 @@ cmd_flash() {
   require_root
   open_disk "${target}"
 
-  local boot_part_dev mnt=""
+  local boot_part_dev
+  local mnt=""
   boot_part_dev=$(boot_part_path "${disk}" "${BOOT_PART}")
 
   cleanup() {
-    umount "${mnt}" 2>/dev/null || true
-    [[ -n "${mnt}" ]] && rmdir "${mnt}" 2>/dev/null || true
+    umount "${mnt:-}" 2>/dev/null || true
+    [[ -n "${mnt:-}" ]] && rmdir "${mnt}" 2>/dev/null || true
     [[ -n "${loop_dev}" ]] && losetup -d "${loop_dev}" 2>/dev/null || true
+    loop_dev=""
   }
   trap cleanup EXIT
 
@@ -159,6 +167,8 @@ cmd_flash() {
   sync
   echo "Done."
   [[ ${do_backup} -eq 1 ]] && echo "Rollback: sudo $0 restore ${backup_dir} ${target}"
+  cleanup
+  trap - EXIT
 }
 
 # main
