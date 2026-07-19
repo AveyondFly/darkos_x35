@@ -78,14 +78,14 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload to Baidu Netdisk
-        if: (startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch') && github.event.inputs.upload_baidu != 'false' && secrets.BDUSS != '' && secrets.STOKEN != ''
+        if: startsWith(github.ref, 'refs/tags/') || (github.event_name == 'workflow_dispatch' && github.event.inputs.upload_baidu)
         env:
           BDUSS: ${{ secrets.BDUSS }}
           STOKEN: ${{ secrets.STOKEN }}
           BAIDU_REMOTE_DIR: ${{ vars.BAIDU_REMOTE_DIR || '/Apps/dArkOS-X35/' }}
-        run: bash scripts/upload-baidu.sh
-
-      - name: Baidu upload skipped notice
-        if: (startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch') && github.event.inputs.upload_baidu != 'false' && (secrets.BDUSS == '' || secrets.STOKEN == '')
         run: |
-          echo "::notice::Baidu upload skipped — set repository secrets BDUSS and STOKEN to enable."
+          if [[ -z "${BDUSS}" || -z "${STOKEN}" ]]; then
+            echo "::notice::Baidu upload skipped — set repository secrets BDUSS and STOKEN to enable."
+            exit 0
+          fi
+          bash scripts/upload-baidu.sh
