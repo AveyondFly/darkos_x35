@@ -126,7 +126,10 @@ sudo ./flash-uboot.sh darkos-rk2023.img  # 镜像文件
 
 | Variable | 默认值 | 说明 |
 | --- | --- | --- |
-| `BAIDU_REMOTE_DIR` | `/Apps/dArkOS-X35/` | 网盘目标目录 |
+| `BAIDU_REMOTE_DIR` | `/Apps/dArkOS-X35/` | 网盘根目录（其下自动建日期子目录） |
+
+实际上传路径：`/Apps/dArkOS-X35/YYYY-MM-DD/`（日期按 `Asia/Shanghai`）。  
+可选 Variable `BAIDU_DATE` 覆盖日期文件夹；本地可用 `BAIDU_DATE=2026-07-19` 指定。
 | `DARKOS_RELEASE` | `v06072026` | Release 说明中引用的上游版本 |
 
 未配置 `BDUSS` / `STOKEN` 时，构建与 GitHub Release 仍会执行，仅跳过百度上传。

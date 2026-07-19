@@ -111,6 +111,7 @@ jobs:
           BDUSS: ${{ secrets.BDUSS }}
           STOKEN: ${{ secrets.STOKEN }}
           BAIDU_REMOTE_DIR: ${{ vars.BAIDU_REMOTE_DIR || '/Apps/dArkOS-X35/' }}
+          BAIDU_TZ: Asia/Shanghai
         run: |
           if [[ -z "${BDUSS}" || -z "${STOKEN}" ]]; then
             echo "::notice::Baidu upload skipped — set repository secrets BDUSS and STOKEN to enable."
